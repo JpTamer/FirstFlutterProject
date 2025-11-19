@@ -67,3 +67,16 @@ This project is provided "as-is". Add a license file (e.g., MIT) if you want to 
 ## Contact
 
 Maintainer: @JpTamer
+
+## Screenshots
+
+
+![Home Page Screenshot](assets/images/light.png)
+
+![dark Mode](assets/images/dark.png)
+
+![expanded](assets/images/open.png)
+
+![card](assets/images/card.png)
+
+![Reviews Screenshot](assets/images/search.png)
