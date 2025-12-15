@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'data/tree_data.dart';
+import 'services/tree_api_service.dart';
 
 void main() {
   runApp(const TreeCureApp());
@@ -64,6 +64,36 @@ class TreeMedicinePage extends StatefulWidget {
 
 class _TreeMedicinePageState extends State<TreeMedicinePage> {
   String searchQuery = '';
+  List<Map<String, dynamic>> treeMedicines = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTreeData();
+  }
+
+  Future<void> _loadTreeData() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final data = await TreeApiService.fetchTreeMedicines();
+
+      setState(() {
+        treeMedicines = data;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
 
   List<Map<String, dynamic>> getFilteredTrees() {
     if (searchQuery.isEmpty) {
@@ -94,97 +124,165 @@ class _TreeMedicinePageState extends State<TreeMedicinePage> {
             onPressed: widget.onThemeToggle,
             tooltip: 'Change Theme',
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadTreeData,
+            tooltip: 'Refresh Data',
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search trees...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: widget.isDarkMode ? Colors.grey[800] : Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
-                ),
+      body: isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Colors.green),
+                  SizedBox(height: 16),
+                  Text('Loading tree data from server...'),
+                ],
               ),
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
-            ),
-          ),
-
-          // Tree list
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredTrees.length,
-              itemBuilder: (context, index) {
-                final tree = filteredTrees[index];
-                final diseases = tree['diseases'] as List;
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: ExpansionTile(
-                    leading: const Icon(
-                      Icons.local_florist,
-                      color: Colors.green,
+            )
+          : errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
                     ),
-                    title: Text(
-                      tree['tree'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _loadTreeData,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search trees...',
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: widget.isDarkMode
+                          ? Colors.grey[800]
+                          : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
                       ),
                     ),
-                    children: diseases.map<Widget>((disease) {
-                      return ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.asset(
-                            disease['imageTree'],
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        title: Text(disease['name']),
-                        subtitle: Text('Medicine: ${disease['medicine']}'),
-                        trailing: const Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.green,
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DiseaseDetailPage(
-                                treeName: tree['tree'],
-                                disease: disease,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        searchQuery = value;
+                      });
+                    },
                   ),
-                );
-              },
+                ),
+
+                // Tree list
+                Expanded(
+                  child: filteredTrees.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                searchQuery.isEmpty
+                                    ? 'No trees available'
+                                    : 'No trees found matching "$searchQuery"',
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: filteredTrees.length,
+                          itemBuilder: (context, index) {
+                            final tree = filteredTrees[index];
+                            final diseases = tree['diseases'] as List;
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: ExpansionTile(
+                                leading: const Icon(
+                                  Icons.local_florist,
+                                  color: Colors.green,
+                                ),
+                                title: Text(
+                                  tree['tree'],
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                children: diseases.map<Widget>((disease) {
+                                  return ListTile(
+                                    leading: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.asset(
+                                        disease['imageTree'],
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    title: Text(disease['name']),
+                                    subtitle: Text(
+                                      'Medicine: ${disease['medicine']}',
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.arrow_forward_ios,
+                                      color: Colors.green,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              DiseaseDetailPage(
+                                                treeName: tree['tree'],
+                                                disease: disease,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
